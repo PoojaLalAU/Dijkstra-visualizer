@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dijkstra's Algorithm Visualizer</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0f172a',
+                        panelbg: 'rgba(30, 41, 59, 0.7)',
+                        accent: '#38bdf8',
+                        visited: '#10b981',
+                        current: '#f59e0b',
+                        evaluating: '#ec4899',
+                        path: '#a855f7'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #090d16;
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+
+        .code-font {
+            font-family: 'Fira Code', monospace;
+        }
+
+        /* Glassmorphism utility */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .glass-card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(51, 65, 85, 0.8);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(71, 85, 105, 1);
+        }
+
+        /* Glow effects */
+        .glow-node-current {
+            filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.9));
+        }
+        .glow-node-visited {
+            filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.6));
+        }
+        .glow-node-path {
+            filter: drop-shadow(0 0 14px rgba(168, 85, 247, 0.95));
+        }
+
+        /* SVG edge markers & lines animations */
+        .edge-line {
+            transition: stroke 0.3s ease, stroke-width 0.3s ease;
+        }
+        
+        .pulse-edge {
+            animation: dash 1.5s linear infinite;
+        }
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -20;
+            }
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col overflow-hidden text-slate-200">
+
+    <!-- Header / Navbar -->
+    <header class="h-14 glass-panel border-b border-slate-800 flex items-center justify-between px-6 z-20 shrink-0">
+        <div class="flex items-center space-x-3">
+            <div class="p-2 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-lg shadow-lg shadow-cyan-500/20">
+                <i data-lucide="git-fork" class="w-5 h-5 text-white"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-none bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-300 bg-clip-text text-transparent">
+                    Dijkstra's Visualizer
+                </h1>
+                <p class="text-[10px] text-slate-400 font-medium tracking-wider uppercase mt-0.5">Shortest Path Algorithm Simulator</p>
+            </div>
+        </div>
+
+        <!-- Central Action Bar -->
+        <div class="flex items-center space-x-2 bg-slate-900/80 p-1.5 rounded-xl border border-slate-800">
+            <button id="btn-reset" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition flex items-center gap-1.5">
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reset State
+            </button>
+            <button id="btn-step-back" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition disabled:opacity-40" title="Step Back">
+                <i data-lucide="skip-back" class="w-4 h-4"></i>
+            </button>
+            <button id="btn-play" class="px-4 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-md shadow-cyan-500/20 transition flex items-center gap-1.5">
+                <i id="icon-play" data-lucide="play" class="w-4 h-4 fill-current"></i> <span id="text-play">Run</span>
+            </button>
+            <button id="btn-step-forward" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition disabled:opacity-40" title="Step Forward">
+                <i data-lucide="skip-forward" class="w-4 h-4"></i>
+            </button>
+            
+            <div class="h-4 w-[1px] bg-slate-800 mx-1"></div>
+
+            <div class="flex items-center gap-2 px-2">
+                <i data-lucide="gauge" class="w-3.5 h-3.5 text-slate-400"></i>
+                <input type="range" id="speed-slider" min="1" max="100" value="50" class="w-20 accent-cyan-400 cursor-pointer">
+                <span id="speed-text" class="text-[11px] code-font text-slate-400 w-8">1.0x</span>
+            </div>
+        </div>
+
+        <!-- Top Right Actions -->
+        <div class="flex items-center space-x-3">
+            <select id="preset-select" class="bg-slate-900 text-slate-300 border border-slate-700 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-cyan-500">
+                <option value="" disabled selected>Load Preset...</option>
+                <option value="simple">Simple Network (5 Nodes)</option>
+                <option value="grid">Grid Graph (9 Nodes)</option>
+                <option value="road">Road Map Simulation</option>
+                <option value="star">Star Topology</option>
+                <option value="disconnected">Disconnected Graph</option>
+            </select>
+            
+            <button id="btn-clear-all" class="px-3 py-1.5 rounded-lg text-xs font-medium text-rose-400 bg-rose-950/40 hover:bg-rose-900/50 border border-rose-900/50 transition flex items-center gap-1">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear Canvas
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="flex-1 flex overflow-hidden relative">
+
+        <!-- Left Toolbar / Controls -->
+        <aside class="w-64 glass-panel border-r border-slate-800 p-4 flex flex-col gap-4 shrink-0 z-10 overflow-y-auto">
+            <!-- Canvas Interaction Modes -->
+            <div>
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Canvas Mode</h3>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="tool-node" class="tool-btn active flex items-center justify-center gap-2 p-2 rounded-lg text-xs font-medium border border-cyan-500/50 bg-cyan-500/10 text-cyan-400 transition">
+                        <i data-lucide="circle-dot" class="w-4 h-4"></i> Add Node
+                    </button>
+                    <button id="tool-edge" class="tool-btn flex items-center justify-center gap-2 p-2 rounded-lg text-xs font-medium border border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-800 transition">
+                        <i data-lucide="arrow-up-right" class="w-4 h-4"></i> Add Edge
+                    </button>
+                    <button id="tool-move" class="tool-btn flex items-center justify-center gap-2 p-2 rounded-lg text-xs font-medium border border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-800 transition">
+                        <i data-lucide="move" class="w-4 h-4"></i> Move Node
+                    </button>
+                    <button id="tool-delete" class="tool-btn flex items-center justify-center gap-2 p-2 rounded-lg text-xs font-medium border border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-800 transition">
+                        <i data-lucide="x" class="w-4 h-4"></i> Erase
+                    </button>
+                </div>
+            </div>
+
+            <!-- Graph Settings -->
+            <div class="border-t border-slate-800 pt-3">
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2.5">Graph Settings</h3>
+                
+                <div class="flex items-center justify-between mb-3 bg-slate-900/60 p-2 rounded-lg border border-slate-800">
+                    <span class="text-xs font-medium text-slate-300">Graph Type</span>
+                    <button id="toggle-directed" class="flex items-center gap-1.5 text-xs font-semibold text-cyan-400 bg-cyan-950/60 border border-cyan-800/50 px-2.5 py-1 rounded-md">
+                        <span id="label-directed">Undirected</span>
+                    </button>
+                </div>
+
+                <div class="space-y-2">
+                    <div>
+                        <label class="text-[11px] text-slate-400 font-medium mb-1 block">Start Node (Source)</label>
+                        <select id="select-source" class="w-full bg-slate-900 text-slate-200 border border-slate-700 rounded-lg p-2 text-xs focus:outline-none focus:border-cyan-500">
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[11px] text-slate-400 font-medium mb-1 block">Target Node (Destination)</label>
+                        <select id="select-target" class="w-full bg-slate-900 text-slate-200 border border-slate-700 rounded-lg p-2 text-xs focus:outline-none focus:border-cyan-500">
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Manual Data Entry Modal Launcher / Code Import -->
+            <div class="border-t border-slate-800 pt-3">
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Data Operations</h3>
+                <div class="flex flex-col gap-2">
+                    <button id="btn-open-code-modal" class="w-full p-2 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs text-slate-300 font-medium transition flex items-center justify-center gap-2">
+                        <i data-lucide="file-json" class="w-4 h-4 text-cyan-400"></i> Import Matrix / JSON
+                    </button>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="btn-export-json" class="p-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 rounded-lg text-[11px] text-slate-400 hover:text-slate-200 transition flex items-center justify-center gap-1">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i> Export JSON
+                        </button>
+                        <button id="btn-export-img" class="p-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 rounded-lg text-[11px] text-slate-400 hover:text-slate-200 transition flex items-center justify-center gap-1">
+                            <i data-lucide="image" class="w-3.5 h-3.5"></i> Save Image
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Color Legend -->
+            <div class="border-t border-slate-800 pt-3 mt-auto">
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Legend</h3>
+                <div class="grid grid-cols-2 gap-1.5 text-[11px]">
+                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-slate-700 border border-slate-500"></span> Unvisited</div>
+                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-amber-500 shadow-sm shadow-amber-500"></span> Current</div>
+                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-pink-500 shadow-sm shadow-pink-500"></span> Evaluating</div>
+                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500"></span> Visited</div>
+                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-purple-500 shadow-sm shadow-purple-500"></span> Shortest Path</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Center Interactive SVG Canvas -->
+        <main class="flex-1 relative bg-slate-950/80 overflow-hidden flex flex-col">
+            <!-- Hint Overlay -->
+            <div id="canvas-hint" class="absolute top-3 left-4 pointer-events-none z-10 bg-slate-900/80 border border-slate-800/80 px-3 py-1.5 rounded-lg text-xs text-slate-400 backdrop-blur-md flex items-center gap-2">
+                <i data-lucide="info" class="w-3.5 h-3.5 text-cyan-400"></i>
+                <span id="hint-text">Click canvas to add a new node.</span>
+            </div>
+
+            <svg id="graph-canvas" class="w-full h-full cursor-crosshair select-none">
+                <!-- SVG Defs for Arrowheads & Filters -->
+                <defs>
+                    <marker id="arrow" viewBox="0 0 10 10" refX="28" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+                    </marker>
+                    <marker id="arrow-eval" viewBox="0 0 10 10" refX="28" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#ec4899"/>
+                    </marker>
+                    <marker id="arrow-path" viewBox="0 0 10 10" refX="28" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#a855f7"/>
+                    </marker>
+                    
+                    <!-- Glow filters -->
+                    <filter id="glow-gold" x="-50%" y="-50%" width="200%" height="200%">
+                        <feGaussianBlur stdDeviation="4" result="blur" />
+                        <feMerge>
+                            <feMergeNode in="blur" />
+                            <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                    </filter>
+                    <filter id="glow-purple" x="-50%" y="-50%" width="200%" height="200%">
+                        <feGaussianBlur stdDeviation="5" result="blur" />
+                        <feMerge>
+                            <feMergeNode in="blur" />
+                            <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                    </filter>
+                </defs>
+
+                <!-- Layer groups for z-index ordering -->
+                <g id="layer-edges"></g>
+                <g id="layer-weights"></g>
+                <g id="layer-temp-edge"></g>
+                <g id="layer-nodes"></g>
+            </svg>
+        </main>
+
+        <!-- Right Data Dashboard Panel -->
+        <aside class="w-80 glass-panel border-l border-slate-800 flex flex-col shrink-0 z-10 overflow-hidden">
+            
+            <!-- Dashboard Tab Bar -->
+            <div class="h-10 border-b border-slate-800 flex items-center px-2 bg-slate-900/50">
+                <span class="text-xs font-bold text-slate-300 px-3 flex items-center gap-2">
+                    <i data-lucide="activity" class="w-4 h-4 text-cyan-400"></i> Algorithm State Dashboard
+                </span>
+            </div>
+
+            <!-- Real-time Min-Heap Priority Queue -->
+            <div class="p-3 border-b border-slate-800 bg-slate-900/40">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-cyan-400 flex items-center gap-1.5">
+                        <i data-lucide="layers" class="w-3.5 h-3.5"></i> Priority Queue (Min-Heap)
+                    </span>
+                    <span id="pq-count" class="text-[10px] code-font px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">0 items</span>
+                </div>
+                <div id="pq-container" class="flex flex-wrap gap-1.5 min-h-[42px] max-h-28 overflow-y-auto p-2 bg-slate-950/60 rounded-lg border border-slate-800/80">
+                    <span class="text-xs text-slate-600 italic">Queue is empty</span>
+                </div>
+            </div>
+
+            <!-- Distance & Predecessor Table -->
+            <div class="flex-1 flex flex-col overflow-hidden min-h-[160px] border-b border-slate-800">
+                <div class="p-2.5 bg-slate-900/60 flex justify-between items-center border-b border-slate-800">
+                    <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                        <i data-lucide="table" class="w-3.5 h-3.5 text-slate-400"></i> Distances Table
+                    </span>
+                </div>
+                <div class="flex-1 overflow-y-auto">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead class="bg-slate-900/80 sticky top-0 text-slate-400 text-[11px]">
+                            <tr>
+                                <th class="py-1.5 px-3 font-medium border-b border-slate-800">Node</th>
+                                <th class="py-1.5 px-3 font-medium border-b border-slate-800">Dist. from Source</th>
+                                <th class="py-1.5 px-3 font-medium border-b border-slate-800">Previous Node</th>
+                            </tr>
+                        </thead>
+                        <tbody id="distance-table-body" class="divide-y divide-slate-800/50 code-font">
+                            <!-- Dynamic Table Rows -->
+                            <tr><td colspan="3" class="p-3 text-center text-slate-600 font-sans italic">No graph loaded</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Step Explanation Log -->
+            <div class="h-52 flex flex-col bg-slate-950/80">
+                <div class="p-2 bg-slate-900/60 border-b border-slate-800 flex justify-between items-center">
+                    <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                        <i data-lucide="terminal" class="w-3.5 h-3.5 text-slate-400"></i> Execution Log
+                    </span>
+                    <button id="btn-clear-log" class="text-[10px] text-slate-500 hover:text-slate-300">Clear</button>
+                </div>
+                <div id="log-container" class="flex-1 p-3 overflow-y-auto code-font text-[11px] space-y-1.5 leading-relaxed">
+                    <div class="text-slate-500 italic">Ready to execute Dijkstra algorithm...</div>
+                </div>
+            </div>
+
+        </aside>
+    </div>
+
+    <!-- Edge Weight Modal -->
+    <div id="modal-weight" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="glass-panel p-5 rounded-2xl w-80 shadow-2xl border border-slate-700 animate-in fade-in zoom-in-95 duration-150">
+            <h3 class="text-sm font-bold text-slate-200 mb-1 flex items-center gap-2">
+                <i data-lucide="hash" class="w-4 h-4 text-cyan-400"></i> Set Edge Weight
+            </h3>
+            <p class="text-xs text-slate-400 mb-4">Enter a positive integer edge weight between <span id="weight-nodes-label" class="font-bold text-slate-200"></span>.</p>
+            
+            <input type="number" id="input-weight" min="1" max="999" value="5" class="w-full bg-slate-900 text-slate-100 border border-slate-700 rounded-xl p-2.5 code-font text-sm mb-4 focus:outline-none focus:border-cyan-500">
+            
+            <div class="flex justify-end gap-2">
+                <button id="btn-cancel-weight" class="px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:bg-slate-800">Cancel</button>
+                <button id="btn-save-weight" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-cyan-500 hover:bg-cyan-400 text-slate-950">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data / Code Import Modal -->
+    <div id="modal-code" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="glass-panel p-6 rounded-2xl w-[500px] shadow-2xl border border-slate-700 max-w-full">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                    <i data-lucide="code" class="w-4 h-4 text-cyan-400"></i> Import Graph Data
+                </h3>
+                <button id="btn-close-code-modal" class="text-slate-400 hover:text-slate-200"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            
+            <p class="text-xs text-slate-400 mb-3">Paste an Adjacency Matrix (CSV formatted) or JSON Edge List representation:</p>
+
+            <textarea id="input-graph-data" rows="8" class="w-full bg-slate-900 code-font text-xs p-3 text-slate-200 border border-slate-700 rounded-xl focus:outline-none focus:border-cyan-500 mb-4" placeholder='JSON Example:
+{
+  "nodes": [{"id":"A","x":100,"y":100}, {"id":"B","x":250,"y":100}],
+  "edges": [{"from":"A","to":"B","weight":4}]
+}'></textarea>
+
+            <div class="flex justify-end gap-2">
+                <button id="btn-load-code" class="px-4 py-2 rounded-xl text-xs font-semibold bg-cyan-500 hover:bg-cyan-400 text-slate-950">Load Graph Data</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- App JavaScript Logic -->
+    <script>
+        // --- State Variables ---
+        let nodes = []; // [{ id, x, y }]
+        let edges = []; // [{ from, to, weight }]
+        let isDirected = false;
+        let activeTool = 'node'; // 'node', 'edge', 'move', 'delete'
+        let selectedNodeForEdge = null;
+        let draggedNode = null;
+        let dragOffset = { x: 0, y: 0 };
+        let sourceNodeId = null;
+        let targetNodeId = null;
+
+        // Algorithm Execution State
+        let simulationSteps = [];
+        let currentStepIdx = -1;
+        let isPlaying = false;
+        let playInterval = null;
+        let speedMs = 600;
+
+        // Pending Edge Creation
+        let pendingEdgeFrom = null;
+        let pendingEdgeTo = null;
+
+        // DOM Elements
+        const canvas = document.getElementById('graph-canvas');
+        const layerEdges = document.getElementById('layer-edges');
+        const layerWeights = document.getElementById('layer-weights');
+        const layerTempEdge = document.getElementById('layer-temp-edge');
+        const layerNodes = document.getElementById('layer-nodes');
+        const selectSource = document.getElementById('select-source');
+        const selectTarget = document.getElementById('select-target');
+        const pqContainer = document.getElementById('pq-container');
+        const pqCount = document.getElementById('pq-count');
+        const distTableBody = document.getElementById('distance-table-body');
+        const logContainer = document.getElementById('log-container');
+        const hintText = document.getElementById('hint-text');
+
+        // Presets Data
+        const PRESETS = {
+            simple: {
+                directed: false,
+                nodes: [
+                    { id: 'A', x: 140, y: 180 },
+                    { id: 'B', x: 300, y: 100 },
+                    { id: 'C', x: 300, y: 260 },
+                    { id: 'D', x: 480, y: 100 },
+                    { id: 'E', x: 480, y: 260 }
+                ],
+                edges: [
+                    { from: 'A', to: 'B', weight: 4 },
+                    { from: 'A', to: 'C', weight: 2 },
+                    { from: 'B', to: 'C', weight: 1 },
+                    { from: 'B', to: 'D', weight: 5 },
+                    { from: 'C', to: 'D', weight: 8 },
+                    { from: 'C', to: 'E', weight: 10 },
+                    { from: 'D', to: 'E', weight: 2 }
+                ],
+                source: 'A',
+                target: 'E'
+            },
+            grid: {
+                directed: false,
+                nodes: [
+                    { id: '1', x: 120, y: 100 }, { id: '2', x: 280, y: 100 }, { id: '3', x: 440, y: 100 },
+                    { id: '4', x: 120, y: 220 }, { id: '5', x: 280, y: 220 }, { id: '6', x: 440, y: 220 },
+                    { id: '7', x: 120, y: 340 }, { id: '8', x: 280, y: 340 }, { id: '9', x: 440, y: 340 }
+                ],
+                edges: [
+                    { from: '1', to: '2', weight: 3 }, { from: '2', to: '3', weight: 4 },
+                    { from: '1', to: '4', weight: 2 }, { from: '2', to: '5', weight: 1 }, { from: '3', to: '6', weight: 6 },
+                    { from: '4', to: '5', weight: 7 }, { from: '5', to: '6', weight: 2 },
+                    { from: '4', to: '7', weight: 5 }, { from: '5', to: '8', weight: 3 }, { from: '6', to: '9', weight: 1 },
+                    { from: '7', to: '8', weight: 2 }, { from: '8', to: '9', weight: 4 }
+                ],
+                source: '1',
+                target: '9'
+            },
+            road: {
+                directed: true,
+                nodes: [
+                    { id: 'City A', x: 100, y: 220 },
+                    { id: 'Hub B', x: 240, y: 120 },
+                    { id: 'Hub C', x: 240, y: 320 },
+                    { id: 'Metro D', x: 420, y: 120 },
+                    { id: 'Metro E', x: 420, y: 320 },
+                    { id: 'City F', x: 560, y: 220 }
+                ],
+                edges: [
+                    { from: 'City A', to: 'Hub B', weight: 5 },
+                    { from: 'City A', to: 'Hub C', weight: 2 },
+                    { from: 'Hub B', to: 'Metro D', weight: 4 },
+                    { from: 'Hub C', to: 'Hub B', weight: 1 },
+                    { from: 'Hub C', to: 'Metro E', weight: 7 },
+                    { from: 'Metro D', to: 'Metro E', weight: 3 },
+                    { from: 'Metro D', to: 'City F', weight: 6 },
+                    { from: 'Metro E', to: 'City F', weight: 1 }
+                ],
+                source: 'City A',
+                target: 'City F'
+            },
+            star: {
+                directed: false,
+                nodes: [
+                    { id: 'Center', x: 320, y: 220 },
+                    { id: 'N1', x: 320, y: 80 },
+                    { id: 'N2', x: 460, y: 150 },
+                    { id: 'N3', x: 420, y: 320 },
+                    { id: 'N4', x: 220, y: 320 },
+                    { id: 'N5', x: 180, y: 150 }
+                ],
+                edges: [
+                    { from: 'Center', to: 'N1', weight: 2 },
+                    { from: 'Center', to: 'N2', weight: 5 },
+                    { from: 'Center', to: 'N3', weight: 3 },
+                    { from: 'Center', to: 'N4', weight: 1 },
+                    { from: 'Center', to: 'N5', weight: 4 },
+                    { from: 'N1', to: 'N2', weight: 2 },
+                    { from: 'N3', to: 'N4', weight: 6 }
+                ],
+                source: 'N5',
+                target: 'N2'
+            },
+            disconnected: {
+                directed: false,
+                nodes: [
+                    { id: 'A', x: 120, y: 160 },
+                    { id: 'B', x: 260, y: 160 },
+                    { id: 'C', x: 190, y: 280 },
+                    { id: 'X', x: 420, y: 160 },
+                    { id: 'Y', x: 540, y: 220 }
+                ],
+                edges: [
+                    { from: 'A', to: 'B', weight: 3 },
+                    { from: 'B', to: 'C', weight: 4 },
+                    { from: 'A', to: 'C', weight: 2 },
+                    { from: 'X', to: 'Y', weight: 5 }
+                ],
+                source: 'A',
+                target: 'Y'
+            }
+        };
+
+        // Initialize App
+        window.addEventListener('load', () => {
+            lucide.createIcons();
+            loadPreset('simple');
+            setupEventListeners();
+        });
+
+        // --- Core Graph Helper Functions ---
+        function getNextNodeId() {
+            const charCodeA = 65;
+            for (let i = 0; i < 26; i++) {
+                const letter = String.fromCharCode(charCodeA + i);
+                if (!nodes.some(n => n.id === letter)) return letter;
+            }
+            return 'N' + (nodes.length + 1);
+        }
+
+        function findNodeAt(x, y, radius = 22) {
+            return nodes.find(n => Math.hypot(n.x - x, n.y - y) <= radius);
+        }
+
+        function updateSourceTargetDropdowns() {
+            const prevSource = selectSource.value || sourceNodeId;
+            const prevTarget = selectTarget.value || targetNodeId;
+
+            selectSource.innerHTML = '';
+            selectTarget.innerHTML = '';
+
+            nodes.forEach(n => {
+                const opt1 = document.createElement('option');
+                opt1.value = n.id;
+                opt1.textContent = `Node ${n.id}`;
+                selectSource.appendChild(opt1);
+
+                const opt2 = document.createElement('option');
+                opt2.value = n.id;
+                opt2.textContent = `Node ${n.id}`;
+                selectTarget.appendChild(opt2);
+            });
+
+            if (nodes.some(n => n.id === prevSource)) {
+                sourceNodeId = prevSource;
+            } else {
+                sourceNodeId = nodes[0] ? nodes[0].id : null;
+            }
+
+            if (nodes.some(n => n.id === prevTarget)) {
+                targetNodeId = prevTarget;
+            } else {
+                targetNodeId = nodes[nodes.length - 1] ? nodes[nodes.length - 1].id : null;
+            }
+
+            selectSource.value = sourceNodeId;
+            selectTarget.value = targetNodeId;
+        }
+
+        function loadPreset(presetKey) {
+            const p = PRESETS[presetKey];
+            if (!p) return;
+
+            resetSimulation();
+            isDirected = p.directed;
+            document.getElementById('label-directed').textContent = isDirected ? 'Directed' : 'Undirected';
+            
+            // Clone preset arrays
+            nodes = p.nodes.map(n => ({ ...n }));
+            edges = p.edges.map(e => ({ ...e }));
+
+            sourceNodeId = p.source;
+            targetNodeId = p.target;
+
+            updateSourceTargetDropdowns();
+            renderGraph();
+            calculateDijkstraSteps();
+            renderStep(0);
+        }
+
+        // --- Event Listeners & Controls ---
+        function setupEventListeners() {
+            // Tool selector buttons
+            const toolBtns = {
+                'tool-node': 'node',
+                'tool-edge': 'edge',
+                'tool-move': 'move',
+                'tool-delete': 'delete'
+            };
+
+            Object.keys(toolBtns).forEach(btnId => {
+                document.getElementById(btnId).addEventListener('click', (e) => {
+                    document.querySelectorAll('.tool-btn').forEach(b => {
+                        b.classList.remove('active', 'border-cyan-500/50', 'bg-cyan-500/10', 'text-cyan-400');
+                        b.classList.add('border-slate-700', 'bg-slate-800/60', 'text-slate-300');
+                    });
+
+                    const targetBtn = e.currentTarget;
+                    targetBtn.classList.add('active', 'border-cyan-500/50', 'bg-cyan-500/10', 'text-cyan-400');
+                    targetBtn.classList.remove('border-slate-700', 'bg-slate-800/60', 'text-slate-300');
+
+                    activeTool = toolBtns[btnId];
+                    selectedNodeForEdge = null;
+                    renderGraph();
+                    updateHintText();
+                });
+            });
+
+            // Toggle Directed / Undirected
+            document.getElementById('toggle-directed').addEventListener('click', () => {
+                isDirected = !isDirected;
+                document.getElementById('label-directed').textContent = isDirected ? 'Directed' : 'Undirected';
+                resetSimulation();
+                renderGraph();
+                calculateDijkstraSteps();
+            });
+
+            // Preset selector
+            document.getElementById('preset-select').addEventListener('change', (e) => {
+                loadPreset(e.target.value);
+                e.target.value = "";
+            });
+
+            // Source/Target dropdowns
+            selectSource.addEventListener('change', (e) => {
+                sourceNodeId = e.target.value;
+                resetSimulation();
+                calculateDijkstraSteps();
+                renderStep(0);
+            });
+
+            selectTarget.addEventListener('change', (e) => {
+                targetNodeId = e.target.value;
+                resetSimulation();
+                calculateDijkstraSteps();
+                renderStep(0);
+            });
+
+            // Canvas Mouse Handlers
+            canvas.addEventListener('mousedown', handleCanvasMouseDown);
+            canvas.addEventListener('mousemove', handleCanvasMouseMove);
+            canvas.addEventListener('mouseup', handleCanvasMouseUp);
+
+            // Playback controls
+            document.getElementById('btn-play').addEventListener('click', togglePlay);
+            document.getElementById('btn-step-forward').addEventListener('click', stepForward);
+            document.getElementById('btn-step-back').addEventListener('click', stepBack);
+            document.getElementById('btn-reset').addEventListener('click', () => {
+                resetSimulation();
+                renderStep(0);
+            });
+            document.getElementById('btn-clear-all').addEventListener('click', clearAll);
+
+            // Speed slider
+            const speedSlider = document.getElementById('speed-slider');
+            speedSlider.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                // 1 -> 1500ms, 100 -> 100ms
+                speedMs = 1500 - (val - 1) * (1400 / 99);
+                document.getElementById('speed-text').textContent = (val / 50).toFixed(1) + 'x';
+                if (isPlaying) {
+                    pause();
+                    play();
+                }
+            });
+
+            // Weight Modal Listeners
+            document.getElementById('btn-save-weight').addEventListener('click', confirmWeightModal);
+            document.getElementById('btn-cancel-weight').addEventListener('click', hideWeightModal);
+
+            // Code Modal Listeners
+            document.getElementById('btn-open-code-modal').addEventListener('click', () => {
+                document.getElementById('modal-code').classList.remove('hidden');
+            });
+            document.getElementById('btn-close-code-modal').addEventListener('click', () => {
+                document.getElementById('modal-code').classList.add('hidden');
+            });
+            document.getElementById('btn-load-code').addEventListener('click', loadCustomGraphData);
+
+            // Export Actions
+            document.getElementById('btn-export-json').addEventListener('click', exportJSON);
+            document.getElementById('btn-export-img').addEventListener('click', exportCanvasImage);
+            document.getElementById('btn-clear-log').addEventListener('click', () => {
+                logContainer.innerHTML = '';
+            });
+        }
+
+        function updateHintText() {
+            const hints = {
+                'node': 'Click canvas to place a new node.',
+                'edge': 'Click a start node, then click a destination node.',
+                'move': 'Click and drag a node to reposition it.',
+                'delete': 'Click a node or edge to erase it.'
+            };
+            hintText.textContent = hints[activeTool];
+        }
+
+        // --- Canvas Interaction Logic ---
+        function handleCanvasMouseDown(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const clickedNode = findNodeAt(x, y);
+
+            if (activeTool === 'node') {
+                if (!clickedNode) {
+                    const newId = getNextNodeId();
+                    nodes.push({ id: newId, x, y });
+                    updateSourceTargetDropdowns();
+                    resetSimulation();
+                    renderGraph();
+                    calculateDijkstraSteps();
+                }
+            } else if (activeTool === 'edge') {
+                if (clickedNode) {
+                    if (!selectedNodeForEdge) {
+                        selectedNodeForEdge = clickedNode;
+                        renderGraph();
+                    } else if (selectedNodeForEdge.id !== clickedNode.id) {
+                        pendingEdgeFrom = selectedNodeForEdge.id;
+                        pendingEdgeTo = clickedNode.id;
+                        selectedNodeForEdge = null;
+                        renderGraph();
+                        showWeightModal(pendingEdgeFrom, pendingEdgeTo);
+                    } else {
+                        selectedNodeForEdge = null;
+                        renderGraph();
+                    }
+                } else {
+                    selectedNodeForEdge = null;
+                    renderGraph();
+                }
+            } else if (activeTool === 'move') {
+                if (clickedNode) {
+                    draggedNode = clickedNode;
+                    dragOffset.x = x - clickedNode.x;
+                    dragOffset.y = y - clickedNode.y;
+                }
+            } else if (activeTool === 'delete') {
+                if (clickedNode) {
+                    nodes = nodes.filter(n => n.id !== clickedNode.id);
+                    edges = edges.filter(e => e.from !== clickedNode.id && e.to !== clickedNode.id);
+                    updateSourceTargetDropdowns();
+                    resetSimulation();
+                    renderGraph();
+                    calculateDijkstraSteps();
+                } else {
+                    // Check if clicked near an edge label or edge line
+                    const clickedEdge = findEdgeAt(x, y);
+                    if (clickedEdge) {
+                        edges = edges.filter(e => e !== clickedEdge);
+                        resetSimulation();
+                        renderGraph();
+                        calculateDijkstraSteps();
+                    }
+                }
+            }
+        }
+
+        function handleCanvasMouseMove(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            if (activeTool === 'move' && draggedNode) {
+                draggedNode.x = x - dragOffset.x;
+                draggedNode.y = y - dragOffset.y;
+                renderGraph();
+            }
+
+            if (activeTool === 'edge' && selectedNodeForEdge) {
+                renderGraph();
+                // Draw temporary dynamic line
+                layerTempEdge.innerHTML = `
+                    <line x1="${selectedNodeForEdge.x}" y1="${selectedNodeForEdge.y}" 
+                          x2="${x}" y2="${y}" 
+                          stroke="#38bdf8" stroke-width="2" stroke-dasharray="4,4" />
+                `;
+            }
+        }
+
+        function handleCanvasMouseUp() {
+            if (draggedNode) {
+                draggedNode = null;
+                calculateDijkstraSteps();
+            }
+        }
+
+        function findEdgeAt(x, y) {
+            return edges.find(edge => {
+                const u = nodes.find(n => n.id === edge.from);
+                const v = nodes.find(n => n.id === edge.to);
+                if (!u || !v) return false;
+                
+                // Distance from point (x,y) to line segment (u,v)
+                const L2 = (v.x - u.x)**2 + (v.y - u.y)**2;
+                if (L2 === 0) return false;
+                let t = ((x - u.x) * (v.x - u.x) + (y - u.y) * (v.y - u.y)) / L2;
+                t = Math.max(0, Math.min(1, t));
+                const projX = u.x + t * (v.x - u.x);
+                const projY = u.y + t * (v.y - u.y);
+                const dist = Math.hypot(x - projX, y - projY);
+                return dist < 12; // 12px threshold
+            });
+        }
+
+        // --- Edge Weight Modal ---
+        function showWeightModal(from, to) {
+            document.getElementById('weight-nodes-label').textContent = `${from} → ${to}`;
+            document.getElementById('input-weight').value = '5';
+            document.getElementById('modal-weight').classList.remove('hidden');
+            document.getElementById('input-weight').focus();
+        }
+
+        function hideWeightModal() {
+            document.getElementById('modal-weight').classList.add('hidden');
+            pendingEdgeFrom = null;
+            pendingEdgeTo = null;
+            layerTempEdge.innerHTML = '';
+        }
+
+        function confirmWeightModal() {
+            const weightVal = parseInt(document.getElementById('input-weight').value, 10);
+            if (isNaN(weightVal) || weightVal <= 0) {
+                alert('Please enter a valid positive weight.');
+                return;
+            }
+
+            if (pendingEdgeFrom && pendingEdgeTo) {
+                // Check if edge already exists
+                const existing = edges.find(e => 
+                    (e.from === pendingEdgeFrom && e.to === pendingEdgeTo) ||
+                    (!isDirected && e.from === pendingEdgeTo && e.to === pendingEdgeFrom)
+                );
+
+                if (existing) {
+                    existing.weight = weightVal;
+                } else {
+                    edges.push({ from: pendingEdgeFrom, to: pendingEdgeTo, weight: weightVal });
+                }
+            }
+
+            hideWeightModal();
+            resetSimulation();
+            renderGraph();
+            calculateDijkstraSteps();
+        }
+
+        // --- Data Import/Export ---
+        function loadCustomGraphData() {
+            const raw = document.getElementById('input-graph-data').value.trim();
+            if (!raw) return;
+
+            try {
+                if (raw.startsWith('{')) {
+                    // JSON Format
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed.nodes) && Array.isArray(parsed.edges)) {
+                        nodes = parsed.nodes;
+                        edges = parsed.edges;
+                        isDirected = !!parsed.directed;
+                    }
+                } else {
+                    // Parse Adjacency Matrix CSV
+                    const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+                    const header = lines[0].split(',').map(s => s.trim());
+                    const newNodes = header.map((id, idx) => ({
+                        id,
+                        x: 100 + (idx % 4) * 140,
+                        y: 100 + Math.floor(idx / 4) * 120
+                    }));
+                    const newEdges = [];
+
+                    for (let i = 1; i < lines.length; i++) {
+                        const row = lines[i].split(',').map(s => s.trim());
+                        const fromNode = row[0];
+                        for (let j = 1; j < row.length; j++) {
+                            const w = parseInt(row[j], 10);
+                            if (!isNaN(w) && w > 0) {
+                                newEdges.push({ from: fromNode, to: header[j - 1], weight: w });
+                            }
+                        }
+                    }
+                    nodes = newNodes;
+                    edges = newEdges;
+                }
+
+                document.getElementById('modal-code').classList.add('hidden');
+                updateSourceTargetDropdowns();
+                resetSimulation();
+                renderGraph();
+                calculateDijkstraSteps();
+            } catch (err) {
+                alert('Invalid format. Please check your JSON or CSV matrix input.');
+            }
+        }
+
+        function exportJSON() {
+            const data = { isDirected, nodes, edges, source: sourceNodeId, target: targetNodeId };
+            const jsonStr = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'dijkstra-graph.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function exportCanvasImage() {
+            const svgData = new XMLSerializer().serializeToString(canvas);
+            const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+            const URL = window.URL || window.webkitURL || window;
+            const blobURL = URL.createObjectURL(svgBlob);
+
+            const image = new Image();
+            image.onload = () => {
+                const cvs = document.createElement('canvas');
+                cvs.width = canvas.clientWidth;
+                cvs.height = canvas.clientHeight;
+                const ctx = cvs.getContext('2d');
+                ctx.fillStyle = '#090d16';
+                ctx.fillRect(0, 0, cvs.width, cvs.height);
+                ctx.drawImage(image, 0, 0);
+                
+                const imgURI = cvs.toDataURL('image/png');
+                const a = document.createElement('a');
+                a.href = imgURI;
+                a.download = 'dijkstra-graph.png';
+                a.click();
+            };
+            image.src = blobURL;
+        }
+
+        function clearAll() {
+            nodes = [];
+            edges = [];
+            resetSimulation();
+            updateSourceTargetDropdowns();
+            renderGraph();
+            calculateDijkstraSteps();
+        }
+
+        // --- Render Graph SVG ---
+        function renderGraph(stepState = null) {
+            layerEdges.innerHTML = '';
+            layerWeights.innerHTML = '';
+            layerTempEdge.innerHTML = '';
+            layerNodes.innerHTML = '';
+
+            const currentState = stepState || {
+                distances: {},
+                visited: new Set(),
+                current: null,
+                evaluatingEdge: null,
+                pathEdges: new Set()
+            };
+
+            // Render Edges
+            edges.forEach(edge => {
+                const u = nodes.find(n => n.id === edge.from);
+                const v = nodes.find(n => n.id === edge.to);
+                if (!u || !v) return;
+
+                // Determine Edge Visual Style
+                let strokeColor = '#334155'; // Default dark slate border
+                let strokeWidth = '2';
+                let marker = isDirected ? 'url(#arrow)' : '';
+                let isPath = currentState.pathEdges && currentState.pathEdges.has(`${edge.from}->${edge.to}`);
+                let isEvaluating = currentState.evaluatingEdge && 
+                    ((currentState.evaluatingEdge.from === edge.from && currentState.evaluatingEdge.to === edge.to) ||
+                    (!isDirected && currentState.evaluatingEdge.from === edge.to && currentState.evaluatingEdge.to === edge.from));
+
+                if (isPath) {
+                    strokeColor = '#a855f7'; // Purple glow
+                    strokeWidth = '4';
+                    marker = isDirected ? 'url(#arrow-path)' : '';
+                } else if (isEvaluating) {
+                    strokeColor = '#ec4899'; // Pink pulsing evaluation
+                    strokeWidth = '3.5';
+                    marker = isDirected ? 'url(#arrow-eval)' : '';
+                }
+
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', u.x);
+                line.setAttribute('y1', u.y);
+                line.setAttribute('x2', v.x);
+                line.setAttribute('y2', v.y);
+                line.setAttribute('stroke', strokeColor);
+                line.setAttribute('stroke-width', strokeWidth);
+                line.setAttribute('class', 'edge-line' + (isEvaluating ? ' pulse-edge' : ''));
+                if (marker) line.setAttribute('marker-end', marker);
+                layerEdges.appendChild(line);
+
+                // Edge Weight Badge
+                const midX = (u.x + v.x) / 2;
+                const midY = (u.y + v.y) / 2;
+
+                const gWeight = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', midX - 12);
+                rect.setAttribute('y', midY - 10);
+                rect.setAttribute('width', '24');
+                rect.setAttribute('height', '20');
+                rect.setAttribute('rx', '6');
+                rect.setAttribute('fill', '#0f172a');
+                rect.setAttribute('stroke', strokeColor);
+                rect.setAttribute('stroke-width', '1');
+
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', midX);
+                text.setAttribute('y', midY + 4);
+                text.setAttribute('fill', isPath ? '#c084fc' : (isEvaluating ? '#f472b6' : '#94a3b8'));
+                text.setAttribute('font-size', '11');
+                text.setAttribute('font-weight', '600');
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('class', 'code-font');
+                text.textContent = edge.weight;
+
+                gWeight.appendChild(rect);
+                gWeight.appendChild(text);
+                layerWeights.appendChild(gWeight);
+            });
+
+            // Render Nodes
+            nodes.forEach(node => {
+                const gNode = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                gNode.setAttribute('transform', `translate(${node.x}, ${node.y})`);
+                gNode.setAttribute('class', 'cursor-pointer');
+
+                let fillColor = '#1e293b'; // Unvisited slate
+                let strokeColor = '#475569';
+                let filterClass = '';
+
+                const isCurrent = currentState.current === node.id;
+                const isVisited = currentState.visited && currentState.visited.has(node.id);
+                const isSource = node.id === sourceNodeId;
+                const isTarget = node.id === targetNodeId;
+                const isPathNode = currentState.pathNodes && currentState.pathNodes.has(node.id);
+
+                if (isCurrent) {
+                    fillColor = '#f59e0b'; // Amber current node
+                    strokeColor = '#fbbf24';
+                    filterClass = 'glow-node-current';
+                } else if (isPathNode) {
+                    fillColor = '#a855f7'; // Purple path node
+                    strokeColor = '#c084fc';
+                    filterClass = 'glow-node-path';
+                } else if (isVisited) {
+                    fillColor = '#10b981'; // Emerald visited
+                    strokeColor = '#34d399';
+                    filterClass = 'glow-node-visited';
+                } else if (selectedNodeForEdge && selectedNodeForEdge.id === node.id) {
+                    fillColor = '#0284c7';
+                    strokeColor = '#38bdf8';
+                }
+
+                // Node Base Outer Ring
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('r', '20');
+                circle.setAttribute('fill', fillColor);
+                circle.setAttribute('stroke', strokeColor);
+                circle.setAttribute('stroke-width', isSource || isTarget ? '3' : '2');
+                if (filterClass) circle.setAttribute('class', filterClass);
+
+                // Inner label
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('y', '4');
+                text.setAttribute('fill', isCurrent || isVisited || isPathNode ? '#090d16' : '#f8fafc');
+                text.setAttribute('font-size', '12');
+                text.setAttribute('font-weight', '700');
+                text.setAttribute('text-anchor', 'middle');
+                text.textContent = node.id;
+
+                // Source/Target Pill Label
+                if (isSource || isTarget) {
+                    const pillText = isSource ? 'START' : 'END';
+                    const pillColor = isSource ? '#06b6d4' : '#ec4899';
+                    
+                    const badge = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    badge.setAttribute('y', '-26');
+                    badge.setAttribute('fill', pillColor);
+                    badge.setAttribute('font-size', '9');
+                    badge.setAttribute('font-weight', '800');
+                    badge.setAttribute('text-anchor', 'middle');
+                    badge.setAttribute('letter-spacing', '1');
+                    badge.textContent = pillText;
+                    gNode.appendChild(badge);
+                }
+
+                // Tentative Distance Tag Live display
+                const distVal = currentState.distances ? currentState.distances[node.id] : undefined;
+                const distStr = distVal === undefined ? '' : (distVal === Infinity ? 'd=∞' : `d=${distVal}`);
+
+                const distBadge = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                distBadge.setAttribute('y', '32');
+                distBadge.setAttribute('fill', distVal !== undefined && distVal !== Infinity ? '#38bdf8' : '#64748b');
+                distBadge.setAttribute('font-size', '11');
+                distBadge.setAttribute('font-weight', '600');
+                distBadge.setAttribute('text-anchor', 'middle');
+                distBadge.setAttribute('class', 'code-font');
+                distBadge.textContent = distStr;
+
+                gNode.appendChild(circle);
+                gNode.appendChild(text);
+                gNode.appendChild(distBadge);
+
+                layerNodes.appendChild(gNode);
+            });
+        }
+
+        // --- Dijkstra Step Calculation Engine ---
+        function calculateDijkstraSteps() {
+            simulationSteps = [];
+            if (!sourceNodeId || !nodes.some(n => n.id === sourceNodeId)) return;
+
+            const dist = {};
+            const prev = {};
+            const unvisited = new Set(nodes.map(n => n.id));
+            const visited = new Set();
+            const pq = []; // [{ node, dist }]
+
+            // Initialize Distances
+            nodes.forEach(n => {
+                dist[n.id] = Infinity;
+                prev[n.id] = null;
+            });
+            dist[sourceNodeId] = 0;
+            pq.push({ node: sourceNodeId, dist: 0 });
+
+            // Helper to capture deep copy state step
+            function recordStep(logMessage, current = null, evalEdge = null, pathEdges = new Set(), pathNodes = new Set()) {
+                simulationSteps.push({
+                    distances: { ...dist },
+                    previous: { ...prev },
+                    visited: new Set(visited),
+                    pq: pq.map(item => ({ ...item })).sort((a, b) => a.dist - b.dist),
+                    current,
+                    evaluatingEdge: evalEdge,
+                    pathEdges: new Set(pathEdges),
+                    pathNodes: new Set(pathNodes),
+                    log: logMessage
+                });
+            }
+
+            recordStep(`Initialize source node ${sourceNodeId} with distance 0. All other nodes set to ∞.`);
+
+            while (pq.length > 0) {
+                // Sort Priority Queue to get Minimum Distance Node
+                pq.sort((a, b) => a.dist - b.dist);
+                const { node: u, dist: uDist } = pq.shift();
+
+                if (visited.has(u)) continue;
+
+                // Step: Pick Node from PQ
+                recordStep(`Extracted node ${u} with shortest tentative distance (${uDist}) from Priority Queue.`, u);
+
+                visited.add(u);
+                unvisited.delete(u);
+
+                if (u === targetNodeId) {
+                    recordStep(`Reached destination node ${targetNodeId}! Stopping search early.`, u);
+                    break;
+                }
+
+                if (uDist === Infinity) {
+                    recordStep(`Remaining nodes are unreachable from source. Algorithm terminates.`, u);
+                    break;
+                }
+
+                // Find Neighbors
+                const neighbors = edges.filter(e => {
+                    if (e.from === u) return true;
+                    if (!isDirected && e.to === u) return true;
+                    return false;
+                });
+
+                for (const edge of neighbors) {
+                    const v = edge.from === u ? edge.to : edge.from;
+                    if (visited.has(v)) continue;
+
+                    const weight = edge.weight;
+                    const alt = dist[u] + weight;
+
+                    recordStep(
+                        `Evaluating edge (${u} → ${v}) with weight ${weight}. Tentative distance: ${dist[u]} + ${weight} = ${alt}.`,
+                        u,
+                        { from: u, to: v }
+                    );
+
+                    if (alt < dist[v]) {
+                        const oldDist = dist[v] === Infinity ? '∞' : dist[v];
+                        dist[v] = alt;
+                        prev[v] = u;
+
+                        // Insert or Update in PQ
+                        const existingPqIdx = pq.findIndex(item => item.node === v);
+                        if (existingPqIdx >= 0) {
+                            pq[existingPqIdx].dist = alt;
+                        } else {
+                            pq.push({ node: v, dist: alt });
+                        }
+
+                        recordStep(
+                            `Updated distance for node ${v}: ${oldDist} ➔ ${alt} (via predecessor ${u}).`,
+                            u,
+                            { from: u, to: v }
+                        );
+                    } else {
+                        recordStep(
+                            `Distance to ${v} (${dist[v]}) is already shorter than or equal to ${alt}. No change.`,
+                            u,
+                            { from: u, to: v }
+                        );
+                    }
+                }
+            }
+
+            // Reconstruction of Shortest Path
+            const finalPathEdges = new Set();
+            const finalPathNodes = new Set();
+            if (targetNodeId && dist[targetNodeId] !== Infinity) {
+                let curr = targetNodeId;
+                finalPathNodes.add(curr);
+                while (prev[curr]) {
+                    const p = prev[curr];
+                    finalPathEdges.add(`${p}->${curr}`);
+                    finalPathEdges.add(`${curr}->${p}`);
+                    finalPathNodes.add(p);
+                    curr = p;
+                }
+                recordStep(`Completed! Shortest path length to ${targetNodeId} is ${dist[targetNodeId]}.`, null, null, finalPathEdges, finalPathNodes);
+            } else if (targetNodeId) {
+                recordStep(`No valid path exists between ${sourceNodeId} and ${targetNodeId}.`);
+            } else {
+                recordStep(`Algorithm execution completed for all reachable nodes.`);
+            }
+        }
+
+        // --- Render Step to UI Dashboard & Canvas ---
+        function renderStep(stepIdx) {
+            if (stepIdx < 0 || stepIdx >= simulationSteps.length) return;
+
+            currentStepIdx = stepIdx;
+            const step = simulationSteps[stepIdx];
+
+            // Render SVG Canvas
+            renderGraph(step);
+
+            // Update Priority Queue Display
+            pqContainer.innerHTML = '';
+            pqCount.textContent = `${step.pq.length} items`;
+            if (step.pq.length === 0) {
+                pqContainer.innerHTML = `<span class="text-xs text-slate-600 italic">Queue is empty</span>`;
+            } else {
+                step.pq.forEach(item => {
+                    const chip = document.createElement('div');
+                    chip.className = 'px-2 py-1 rounded bg-slate-800 border border-slate-700 text-xs font-semibold code-font text-cyan-400 flex items-center gap-1 shadow-sm';
+                    chip.innerHTML = `<span class="text-slate-200">${item.node}:</span><span>${item.dist}</span>`;
+                    pqContainer.appendChild(chip);
+                });
+            }
+
+            // Update Distances Table
+            distTableBody.innerHTML = '';
+            nodes.forEach(n => {
+                const tr = document.createElement('tr');
+                const dVal = step.distances[n.id];
+                const pVal = step.previous[n.id];
+
+                const isCurr = step.current === n.id;
+                const isVis = step.visited.has(n.id);
+
+                if (isCurr) tr.className = 'bg-amber-500/10 text-amber-300 font-semibold';
+                else if (isVis) tr.className = 'bg-emerald-500/5 text-emerald-400';
+
+                tr.innerHTML = `
+                    <td class="py-1.5 px-3 border-b border-slate-800/50 font-bold">${n.id}</td>
+                    <td class="py-1.5 px-3 border-b border-slate-800/50">${dVal === Infinity ? '∞' : dVal}</td>
+                    <td class="py-1.5 px-3 border-b border-slate-800/50 text-slate-400">${pVal ? pVal : '-'}</td>
+                `;
+                distTableBody.appendChild(tr);
+            });
+
+            // Update Step Execution Log
+            const logItem = document.createElement('div');
+            logItem.className = 'p-1.5 rounded bg-slate-900 border border-slate-800 text-slate-300 flex items-start gap-2';
+            logItem.innerHTML = `<span class="text-cyan-400 font-bold">[Step ${stepIdx}]</span> <span>${step.log}</span>`;
+            
+            // Highlight current step in log
+            logContainer.querySelectorAll('div').forEach(el => el.classList.remove('border-cyan-500/50', 'bg-slate-850'));
+            logContainer.appendChild(logItem);
+            logItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+            // Toggle step button disabled states
+            document.getElementById('btn-step-back').disabled = stepIdx === 0;
+            document.getElementById('btn-step-forward').disabled = stepIdx === simulationSteps.length - 1;
+        }
+
+        // --- Playback Controls Logic ---
+        function togglePlay() {
+            if (isPlaying) {
+                pause();
+            } else {
+                play();
+            }
+        }
+
+        function play() {
+            if (currentStepIdx >= simulationSteps.length - 1) {
+                currentStepIdx = 0;
+            }
+            isPlaying = true;
+            document.getElementById('text-play').textContent = 'Pause';
+            document.getElementById('icon-play').setAttribute('data-lucide', 'pause');
+            lucide.createIcons();
+
+            playInterval = setInterval(() => {
+                if (currentStepIdx < simulationSteps.length - 1) {
+                    renderStep(currentStepIdx + 1);
+                } else {
+                    pause();
+                }
+            }, speedMs);
+        }
+
+        function pause() {
+            isPlaying = false;
+            clearInterval(playInterval);
+            document.getElementById('text-play').textContent = 'Run';
+            document.getElementById('icon-play').setAttribute('data-lucide', 'play');
+            lucide.createIcons();
+        }
+
+        function stepForward() {
+            pause();
+            if (currentStepIdx < simulationSteps.length - 1) {
+                renderStep(currentStepIdx + 1);
+            }
+        }
+
+        function stepBack() {
+            pause();
+            if (currentStepIdx > 0) {
+                renderStep(currentStepIdx - 1);
+            }
+        }
+
+        function resetSimulation() {
+            pause();
+            currentStepIdx = -1;
+            logContainer.innerHTML = '<div class="text-slate-500 italic">Simulation reset.</div>';
+        }
+
+    </script>
+</body>
+</html>
